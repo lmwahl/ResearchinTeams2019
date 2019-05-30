@@ -1,29 +1,29 @@
+% either vaccinate everyone against strain 10,
+% or vaccinate uniformly against strains 8,9,10,11,12
+% Compare results for these two cases, if epidemic starts at 10, 11, 12, ...
+% Note that epidemics that start close to the boundaries of epidemic
+% space are not treated properly, i.e. they will not get as big because
+% we just drop any strains that mutate off the boundary
+
 tic
-%clear totalI
-% this simple version allows us to set the incoming epidemic and the
-% vaccination ICs by hand, to check various cases
-%
-%  set noeffect = 1 to turn off all effects of the vaccine
-%  (to run control cases and for debugging)
-  
+clear totalI
 nx = 20;                   % antigenic "classes" will run x = 1 to nx
 deltat = .01;              % timestep
-tend = 30;                 % final time
+tend = 20;                 % final time
 nsteps = tend/deltat;
 
 plotflag = 1;              % whether to plot results each time
-noeffect = 0;              % if 1, turn off all effects of vaccine
 
 % parameter values, chosen pretty randomly
 beta = 1;
-sigma= 1;    % sd of mutation distribution
+sigma= 2;    % sd of mutation distribution
 delta = 7;   % mean duration of infection, days 
 
 ab = 2;   % half-sat for b function (infectibility reduced by vac)
 hh = 2;    % hill coefficient for b
 ad = 2;   % half-sat for d function (duration of infn reduced by vac)
 jj = 2;    % hill coefficient for d
-am = 2; floor(nx/3);  % half-sat for m function (transmissibility changed)
+am = floor(nx/3);  % half-sat for m function (transmissibility changed)
 kk = 2;    % hill coefficient for m
 % using notation hh, jj and kk to avoid possible confusion with counters
 
@@ -33,30 +33,22 @@ dists =  0:1:nx;   % possible distances between two strains
 % therefore bs(1) gives us b for antigenic distance 0 (likewise ds, mu, ms)
 % and generally matlab bs(x) = value of function b evaluated at x-1
 bs = beta*(dists).^hh./(dists.^hh + ab^hh);
-if (noeffect)
-  bs = beta*ones(size(dists));
-  fprintf(1,'NO VACCINE EFFECT\n');
-end
 
 % d function, currently starts at 1 and increases, saturating at delta
 ds = (delta-1)*(dists).^jj./(dists.^jj + ad^jj);
 ds = ds + 1;   %% bug fix because ds = 0 causes numerical issues %%
-  if (noeffect) ds = delta*ones(size(dists)); end
-  
+
 % mu as a function of antigenic distance, gaussian with sd sigma
 % normalized to sum to 1
-% note that we have to include distances 1 or more in the sum
-% twice so that the whole distribution of mutation sums to 1
 mu = exp(-(dists.*dists)./(sigma.^2));
-mu = mu./(mu(1) + 2*sum(mu(2:end)));
+mu = mu./(mu(1) +2*sum(mu(2:end)));
 
 % m function, mu of transmitted strains modified by vaccination
-for x=1:nx   %will pass on strain x
-  for y = 1:nx  % was infected by strain y
-    for z = 1:nx   % vaccinated against z
+for x=1:nx
+  for y = 1:nx
+    for z = 1:nx
        xz = abs(x-z);
        ms(x,y,z) = mu(abs(x-y)+1)*(xz^kk/(xz^kk + am^kk));
-       if (noeffect) ms(x,y,z) = mu(abs(x-y)+1); end
     end
   end
 end
@@ -70,21 +62,15 @@ Vinit = zeros(1,nx);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % initial conditions (edit here)
 
-S = Sinit; I = Iinit; W = Winit; V = Vinit;
-
-%comment out as required
-
-%S(1) = .9;
-%fprintf(1,'No vaccine\n');
-
-V(10) = .9;
-fprintf(1,'One vaccine\n');
-
-%V(3:7) = .9/5;  
-%fprintf(1,'Distributed vaccine\n');
-
-I(10) = .1;
-%W(1,15,5) = .1;
+for iinit = 10:20
+for caseflag = 1:2
+ S = Sinit; I = Iinit; W = Winit; V = Vinit;
+ I(iinit) = .01;
+ if (caseflag==1)
+  V(10) = .99;
+ else
+  V(8:12) = .99/5;  
+ end
 
 for istep = 2:nsteps    % loop for the numerical integration
 
@@ -150,11 +136,6 @@ for istep = 2:nsteps    % loop for the numerical integration
   end
   end  %%% loop on istep
 
-  % compute total number of infection-days
-totalI = deltat*(sum(sum(sum(W))) + sum(sum(I)))
-It = sum(I,2)';
-Wt = sum(sum(W,3),2)';
-
 % plot some graphs (turn off for many reps)
 if (plotflag)
  Winfectedt = sum(W,3);
@@ -170,5 +151,15 @@ if (plotflag)
  title('W vaccinated against');
 end
 
+% compute total number of infection-days
+totalI(iinit,caseflag) = sum(sum(sum(W))) + sum(sum(I));
 
+end % loop on caseflag
+end % loop on iinit
+
+plot(totalI,'-o');
+legend('vaccine concentrated at 10','vaccine distributed 8-12','location','NW');
+xlabel('incoming strain');
+ylabel('total infection days');
+set(gca,'XLim',[10 18])
 toc
